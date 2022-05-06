@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: StatefulSet # persist across lifetime of a pod, statefulset manages stateful applications providing guarantees about the ordering and uniqueness of pods
+metadata:
+  name: mongodb-statefulset
+spec:
+  serviceName: "mongodb-service"
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+        - name: mongodb
+          image: mongo
+          resources:
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+          ports:
+            - containerPort: 27017
+          env:
+            - name: MONGO_INITDB_ROOT_USERNAME
+              value: "mongoadmin"
+            - name: MONGO_INITDB_ROOT_PASSWORD # kubectl create secret generic catalog-secrets --from-literal=mongodb-password='...'
+              valueFrom:
+                secretKeyRef:
+                  name: catalog-secrets
+                  key: mongodb-password
+          volumeMounts:
+            - mountPath: /data/db
+              name: data # match volumeClaimTemplates metadata name
+  volumeClaimTemplates: # persistent volume
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"] # volume can be mounted as read-write by a single node
+        resources:
+          requests:
+            storage: 1Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-service
+spec:
+  clusterIP: None # headless service
+  selector:
+    app: mongodb
+  ports:
+    - port: 27017
+      targetPort: 27017

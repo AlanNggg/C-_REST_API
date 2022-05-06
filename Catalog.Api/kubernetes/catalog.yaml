@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-deployment
+spec:
+  selector:
+    matchLabels:
+      app: catalog # which pods to manage, e.g. manage all pods have following labels
+  template: # here declares all containers included in this deployment
+    metadata:
+      labels:
+        app: catalog
+    spec:
+      containers:
+        - name: catalog
+          image: alannggg/catalog:v2
+          resources:
+            limits:
+              memory: "128Mi"
+              cpu: "500m" # = 0.5 CPU = half CPU 500 million cpu
+          ports:
+            - containerPort: 80 # port in container to reach rest api
+          env:
+            - name: MongoDbSettings__Host # MongoDbSettings:Host
+              value: mongodb-service
+            - name: MongoDbSettings__Password # kubectl create secret generic catalog-secrets --from-literal=mongodb-password='...'
+              valueFrom:
+                secretKeyRef:
+                  name: catalog-secrets
+                  key: mongodb-password
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 80
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 80
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: catalog # service target any pods with app label catalog
+  ports:
+    - port: 80 # port from outside people can reach
+      targetPort: 80 # container port
+
+# deploy : kubectl apply -f .\catalog.yaml
+# get deployment : kubectl get deployments
+# get pods : kubectl get pods
+#            kubectl get pods -w  // watch
+# get logs : kubectl logs catalog-deployment-fb85cdd64-lktm6
+#            kubectl logs catalog-deployment-fb85cdd64-lktm6 -f // watch
+# get stateful set : kubectl get statefulsets
+# kill pod : kubectl delete pod catalog-deployment-fb85cdd64-lktm6
+# scale deployment : kubectl scale deployments/catalog-deployment --replicas=3 // 3 pods
+
